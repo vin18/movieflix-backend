@@ -1,39 +1,45 @@
-import { FilterQuery, SchemaDefinitionProperty } from "mongoose";
-import { omit } from "lodash";
-
 import UserModel, { UserDocument } from "../models/user.model";
+import { User } from "../interfaces/user.interfafce";
 
-export async function createUser(
-  input: SchemaDefinitionProperty<
-    Omit<UserDocument, "createdAt" | "updatedAt" | "comparePassword">
-  >
-) {
+export async function registerUser(userPayload: User): Promise<User> {
   try {
-    const user = await UserModel.create(input);
-    return omit(user.toJSON(), "password");
+    const emailExists: User | null = await UserModel.findOne({
+      email: userPayload.email,
+    });
+
+    if (emailExists) {
+      throw new Error(`Email already exists`);
+    }
+
+    const user = await UserModel.create(userPayload);
+    return user;
   } catch (error: any) {
     throw new Error(error);
   }
 }
 
-export async function validatePassword({
-  email,
-  password,
-}: {
-  email: string;
-  password: string;
-}) {
+export async function loginUser(userPayload: User): Promise<User> {
   try {
-    const user = await UserModel.findOne({ email });
-    if (!user) return false;
+    const findUser: UserDocument | null = await UserModel.findOne({
+      email: userPayload.email,
+    });
 
-    const isValidPassword = await user.comparePassword(password);
-    if (!isValidPassword) return false;
+    if (!findUser) {
+      throw new Error(`Invalid email or password`);
+    }
+
+    const isPasswordMatching: boolean = await findUser.comparePassword(
+      userPayload.password,
+      findUser.password
+    );
+
+    if (!isPasswordMatching) {
+      throw new Error(`Invalid email or password`);
+    }
+
+    findUser.password = "";
+    return findUser;
   } catch (error: any) {
     throw new Error(error);
   }
-}
-
-export async function findUser(query: FilterQuery<UserDocument>) {
-  return UserModel.findOne(query).lean();
 }
